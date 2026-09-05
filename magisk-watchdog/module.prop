@@ -1,6 +1,0 @@
-id=xtc_health_watchdog
-name=XTC Health Watchdog
-version=0.1.0
-versionCode=1
-author=lijinmu
-description=Systemless watchdog for the normal XTC Health foreground service. No system UID changes.
