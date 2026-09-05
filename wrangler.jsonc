@@ -11,13 +11,13 @@
     {
       "binding": "DB",
       "database_name": "xtc-health",
-      "database_id": "xtc-health"
+      "database_id": "7d38c7ef7e684fde958587e135630dba"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "OAUTH_KV",
-      "id": "7d38c7ef7e684fde958587e135630dba"
+      "id": "xtc-health-oauth"
     }
   ],
   "durable_objects": {
