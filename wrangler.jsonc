@@ -11,7 +11,7 @@
     {
       "binding": "DB",
       "database_name": "xtc-health",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+      "database_id": "xtc-health"
     }
   ],
   "kv_namespaces": [
