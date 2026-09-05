@@ -17,7 +17,7 @@
   "kv_namespaces": [
     {
       "binding": "OAUTH_KV",
-      "id": "xtc-health-oauth"
+      "id": "7d38c7ef7e684fde958587e135630dba"
     }
   ],
   "durable_objects": {
