@@ -14,12 +14,6 @@
       "database_id": "e2ef8b5d-933b-4c71-8f2a-9fd88e4d6da9"
     }
   ],
-"kv_namespaces": [
-  {
-    "binding": "OAUTH_KV",
-    "id": "7d38c7ef7e684fde958587e135630dba"
-  }
-],
   "durable_objects": {
     "bindings": [
       {
