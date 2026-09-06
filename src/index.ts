@@ -82,8 +82,15 @@ async function deviceApi(request: Request, env: Env): Promise<Response> {
       m.device_id, new Date(m.measured_at).toISOString(), m.source,
       m.heart_rate ?? null, m.temperature ?? null,
       m.heart_rate_confidence ?? null, m.command_id ?? null,
-      JSON.stringify(Object.fromEntries(Object.entries(raw as Record<string, unknown>)
-        .filter(([key]) => key !== "spo2" && key !== "spo2_confidence" && key !== "wear_status"))),
+      JSON.stringify({
+        device_id: m.device_id,
+        measured_at: new Date(m.measured_at).toISOString(),
+        source: m.source,
+        heart_rate: m.heart_rate ?? null,
+        temperature: m.temperature ?? null,
+        heart_rate_confidence: m.heart_rate_confidence ?? null,
+        command_id: m.command_id ?? null,
+      }),
     ).run();
     const measurementId = Number(result.meta.last_row_id);
 
