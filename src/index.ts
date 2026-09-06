@@ -6,7 +6,6 @@ interface Env {
   DB: D1Database;
   DEVICE_HUB: DurableObjectNamespace;
   DEFAULT_DEVICE_ID: string;
-  DEVICE_API_KEY: string;
 }
 
 type MeasurementInput = {
@@ -28,31 +27,6 @@ function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
 }
 
-async function sameSecret(actual: string, expected: string): Promise<boolean> {
-  if (!actual || !expected) return false;
-  const enc = new TextEncoder();
-  const [a, b] = await Promise.all([
-    crypto.subtle.digest("SHA-256", enc.encode(actual)),
-    crypto.subtle.digest("SHA-256", enc.encode(expected)),
-  ]);
-  const av = new Uint8Array(a);
-  const bv = new Uint8Array(b);
-  let diff = 0;
-  for (let i = 0; i < av.length; i++) diff |= av[i] ^ bv[i];
-  return diff === 0;
-}
-
-async function requireDevice(request: Request, env: Env): Promise<Response | null> {
-  const header = request.headers.get("authorization") ?? "";
-  const supplied = header.startsWith("Bearer ")
-    ? header.slice(7)
-    : header || request.headers.get("x-api-key") || request.headers.get("x-device-api-key") || "";
-  if (!supplied || !(await sameSecret(supplied, env.DEVICE_API_KEY))) {
-    return json({ error: "unauthorized" }, 401);
-  }
-  return null;
-}
-
 function validNumber(value: unknown, min: number, max: number): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
 }
@@ -72,8 +46,6 @@ function validateMeasurement(body: unknown): MeasurementInput | null {
 }
 
 async function deviceApi(request: Request, env: Env): Promise<Response> {
-  const denied = await requireDevice(request, env);
-  if (denied) return denied;
   const url = new URL(request.url);
 
   if (url.pathname === "/api/device/ws") {
