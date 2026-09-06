@@ -1,20 +1,12 @@
-import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
 import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 
 interface Env {
   DB: D1Database;
-  OAUTH_KV: KVNamespace;
   DEVICE_HUB: DurableObjectNamespace;
   DEFAULT_DEVICE_ID: string;
   DEVICE_API_KEY: string;
-  MCP_ADMIN_PASSWORD: string;
-  OAUTH_PROVIDER: {
-    parseAuthRequest(request: Request): Promise<any>;
-    lookupClient(clientId: string): Promise<any>;
-    completeAuthorization(options: any): Promise<{ redirectTo: string }>;
-  };
 }
 
 type MeasurementInput = {
@@ -36,16 +28,8 @@ function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
 }
 
-function escapeHtml(value: unknown): string {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
 async function sameSecret(actual: string, expected: string): Promise<boolean> {
+  if (!actual || !expected) return false;
   const enc = new TextEncoder();
   const [a, b] = await Promise.all([
     crypto.subtle.digest("SHA-256", enc.encode(actual)),
@@ -60,7 +44,9 @@ async function sameSecret(actual: string, expected: string): Promise<boolean> {
 
 async function requireDevice(request: Request, env: Env): Promise<Response | null> {
   const header = request.headers.get("authorization") ?? "";
-  const supplied = header.startsWith("Bearer ") ? header.slice(7) : "";
+  const supplied = header.startsWith("Bearer ")
+    ? header.slice(7)
+    : header || request.headers.get("x-api-key") || request.headers.get("x-device-api-key") || "";
   if (!supplied || !(await sameSecret(supplied, env.DEVICE_API_KEY))) {
     return json({ error: "unauthorized" }, 401);
   }
@@ -98,6 +84,10 @@ async function deviceApi(request: Request, env: Env): Promise<Response> {
     if (!/^[A-Za-z0-9._-]{1,64}$/.test(deviceId)) return json({ error: "invalid device_id" }, 400);
     const stub = env.DEVICE_HUB.get(env.DEVICE_HUB.idFromName(deviceId));
     return stub.fetch(request);
+  }
+
+  if (url.pathname === "/api/device/heartbeat" && request.method === "GET") {
+    return json({ ok: true, service: "xtc-health-mcp", device_auth: true });
   }
 
   if (url.pathname === "/api/device/heartbeat" && request.method === "POST") {
@@ -262,34 +252,8 @@ const publicHandler = {
     if (url.pathname.startsWith("/api/device/")) return deviceApi(request, env);
     if (url.pathname === "/health") return json({ ok: true, service: "xtc-health-mcp" });
 
-    if (url.pathname === "/authorize") {
-      const oauthRequest = await env.OAUTH_PROVIDER.parseAuthRequest(request);
-      const client = await env.OAUTH_PROVIDER.lookupClient(oauthRequest.clientId);
-      if (request.method === "GET") {
-        const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-          <title>授权 XTC Health MCP</title><style>body{font:16px system-ui;max-width:520px;margin:48px auto;padding:20px}input,button{box-sizing:border-box;width:100%;padding:12px;margin-top:12px}small{color:#555}</style>
-          <h1>授权 XTC Health MCP</h1><p>客户端：${escapeHtml(client?.client_name ?? oauthRequest.clientId)}</p>
-          <p><small>授权后客户端可以读取、发起采集和删除本服务器中的健康传感器记录。</small></p>
-          <form method="post"><input name="password" type="password" autocomplete="current-password" placeholder="MCP 管理密码" required><button>确认授权</button></form>`;
-        return new Response(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
-      }
-      if (request.method === "POST") {
-        const form = await request.formData();
-        const password = String(form.get("password") ?? "");
-        if (!(await sameSecret(password, env.MCP_ADMIN_PASSWORD))) return new Response("密码错误", { status: 403 });
-        const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
-          request: oauthRequest,
-          userId: "owner",
-          metadata: { label: "XTC Health MCP owner" },
-          scope: oauthRequest.scope ?? [],
-          props: { userId: "owner" },
-        });
-        return Response.redirect(redirectTo, 302);
-      }
-    }
-
     if (url.pathname === "/") {
-      return new Response("XTC Health MCP is running. MCP endpoint: /mcp", { headers: { "content-type": "text/plain; charset=utf-8" } });
+      return new Response("XTC Health MCP is running. MCP endpoint: /mcp (no OAuth)", { headers: { "content-type": "text/plain; charset=utf-8" } });
     }
     return json({ error: "not found" }, 404);
   },
@@ -320,14 +284,9 @@ export class DeviceHub extends DurableObject<Env> {
   }
 }
 
-export default new OAuthProvider<Env>({
-  apiRoute: "/mcp",
-  apiHandler: mcpHandler,
-  defaultHandler: publicHandler,
-  authorizeEndpoint: "/authorize",
-  tokenEndpoint: "/oauth/token",
-  clientRegistrationEndpoint: "/oauth/register",
-  scopesSupported: ["health.read", "health.collect", "health.delete"],
-  accessTokenTTL: 3600,
-  refreshTokenTTL: 2_592_000,
-});
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    if (new URL(request.url).pathname === "/mcp") return mcpHandler.fetch(request, env, ctx);
+    return publicHandler.fetch(request, env);
+  },
+} satisfies ExportedHandler<Env>;
