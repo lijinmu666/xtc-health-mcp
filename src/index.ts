@@ -13,11 +13,8 @@ type MeasurementInput = {
   measured_at: string;
   source: "scheduled" | "manual";
   heart_rate?: number | null;
-  spo2?: number | null;
   temperature?: number | null;
-  wear_status?: number | null;
   heart_rate_confidence?: number | null;
-  spo2_confidence?: number | null;
   command_id?: string | null;
 };
 
@@ -38,9 +35,7 @@ function validateMeasurement(body: unknown): MeasurementInput | null {
   if (typeof m.measured_at !== "string" || Number.isNaN(Date.parse(m.measured_at))) return null;
   if (m.source !== "scheduled" && m.source !== "manual") return null;
   if (m.heart_rate != null && !validNumber(m.heart_rate, 20, 250)) return null;
-  if (m.spo2 != null && !validNumber(m.spo2, 50, 100)) return null;
   if (m.temperature != null && !validNumber(m.temperature, 20, 45)) return null;
-  if (m.wear_status != null && !validNumber(m.wear_status, 0, 20)) return null;
   if (m.command_id != null && (typeof m.command_id !== "string" || m.command_id.length > 100)) return null;
   return m as MeasurementInput;
 }
@@ -81,13 +76,14 @@ async function deviceApi(request: Request, env: Env): Promise<Response> {
 
     const result = await env.DB.prepare(
       `INSERT INTO measurements
-       (device_id,measured_at,source,heart_rate,spo2,temperature,wear_status,heart_rate_confidence,spo2_confidence,command_id,raw_json)
-       VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+       (device_id,measured_at,source,heart_rate,temperature,heart_rate_confidence,command_id,raw_json)
+       VALUES(?,?,?,?,?,?,?,?)`,
     ).bind(
       m.device_id, new Date(m.measured_at).toISOString(), m.source,
-      m.heart_rate ?? null, m.spo2 ?? null, m.temperature ?? null, m.wear_status ?? null,
-      m.heart_rate_confidence ?? null, m.spo2_confidence ?? null, m.command_id ?? null,
-      JSON.stringify(raw),
+      m.heart_rate ?? null, m.temperature ?? null,
+      m.heart_rate_confidence ?? null, m.command_id ?? null,
+      JSON.stringify(Object.fromEntries(Object.entries(raw as Record<string, unknown>)
+        .filter(([key]) => key !== "spo2" && key !== "spo2_confidence" && key !== "wear_status"))),
     ).run();
     const measurementId = Number(result.meta.last_row_id);
 
@@ -133,8 +129,8 @@ function buildMcpServer(env: Env): McpServer {
       const deviceId = device_id ?? env.DEFAULT_DEVICE_ID;
       const cutoff = new Date(Date.now() - hours * 3600_000).toISOString();
       const rows = await env.DB.prepare(
-        `SELECT id,device_id,measured_at,received_at,source,heart_rate,spo2,temperature,wear_status,
-                heart_rate_confidence,spo2_confidence,command_id
+        `SELECT id,device_id,measured_at,received_at,source,heart_rate,temperature,
+                heart_rate_confidence,command_id
          FROM measurements WHERE device_id=? AND measured_at>=? ORDER BY measured_at DESC LIMIT ?`,
       ).bind(deviceId, cutoff, limit).all();
       return mcpResult({ device_id: deviceId, hours, count: rows.results.length, measurements: rows.results });
@@ -157,7 +153,7 @@ function buildMcpServer(env: Env): McpServer {
       if (command_id) {
         const row = await env.DB.prepare(
           `SELECT c.id,c.device_id,c.created_at,c.completed_at,c.status,
-                  m.measured_at,m.heart_rate,m.spo2,m.temperature,m.wear_status
+                  m.measured_at,m.heart_rate,m.temperature
            FROM commands c LEFT JOIN measurements m ON m.id=c.result_measurement_id
            WHERE c.id=? AND c.device_id=?`,
         ).bind(command_id, deviceId).first();
