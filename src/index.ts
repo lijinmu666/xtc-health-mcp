@@ -6,6 +6,8 @@ interface Env {
   DB: D1Database;
   DEVICE_HUB: DurableObjectNamespace;
   DEFAULT_DEVICE_ID: string;
+  AUTO_CLEANUP_THRESHOLD_BYTES: string;
+  AUTO_CLEANUP_RETENTION_HOURS: string;
 }
 
 type MeasurementInput = {
@@ -22,6 +24,44 @@ const jsonHeaders = { "content-type": "application/json; charset=utf-8" };
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
+}
+
+function positiveInteger(value: string, fallback: number): number {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+async function autoCleanup(env: Env): Promise<void> {
+  const thresholdBytes = positiveInteger(env.AUTO_CLEANUP_THRESHOLD_BYTES, 1024 * 1024);
+  const retentionHours = positiveInteger(env.AUTO_CLEANUP_RETENTION_HOURS, 24);
+  const probe = await env.DB.prepare("SELECT 1 AS ok").all();
+  const sizeBefore = Number(probe.meta.size_after ?? 0);
+
+  if (sizeBefore < thresholdBytes) {
+    console.log(JSON.stringify({ event: "auto_cleanup_skipped", size_before: sizeBefore, threshold_bytes: thresholdBytes }));
+    return;
+  }
+
+  const cutoff = new Date(Date.now() - retentionHours * 3600_000).toISOString();
+  const [commands, measurements] = await env.DB.batch([
+    env.DB.prepare(
+      `DELETE FROM commands
+       WHERE created_at < ? OR result_measurement_id IN
+         (SELECT id FROM measurements WHERE measured_at < ?)`,
+    ).bind(cutoff, cutoff),
+    env.DB.prepare("DELETE FROM measurements WHERE measured_at < ?").bind(cutoff),
+  ]);
+
+  console.log(JSON.stringify({
+    event: "auto_cleanup_completed",
+    size_before: sizeBefore,
+    threshold_bytes: thresholdBytes,
+    retention_hours: retentionHours,
+    cutoff,
+    deleted_commands: commands.meta.changes,
+    deleted_measurements: measurements.meta.changes,
+    size_after: measurements.meta.size_after,
+  }));
 }
 
 function validNumber(value: unknown, min: number, max: number): value is number {
@@ -263,5 +303,8 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (new URL(request.url).pathname === "/mcp") return mcpHandler.fetch(request, env, ctx);
     return publicHandler.fetch(request, env);
+  },
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(autoCleanup(env));
   },
 } satisfies ExportedHandler<Env>;
