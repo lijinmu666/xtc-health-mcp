@@ -11,6 +11,7 @@
 - `/mcp`：无需 OAuth；
 - 设备 HTTP/WebSocket 接口：无需 API Key；
 - Magisk 保活模块：已移除，目前不需要；
+- 自动清理：每小时检查一次；D1 达到 1 MiB 后，删除 24 小时以前的数据；
 - APK 的服务器地址和设备 ID 仍由设置页配置，不应硬编码。
 
 ## 项目信息
@@ -24,6 +25,8 @@
 - D1 绑定：`DB`
 - Durable Object 绑定：`DEVICE_HUB`
 - 默认设备 ID：`xtc-z8a`
+- 自动清理阈值：`AUTO_CLEANUP_THRESHOLD_BYTES=1048576`
+- 自动清理保留时间：`AUTO_CLEANUP_RETENTION_HOURS=24`
 
 安装依赖并检查：
 
@@ -40,6 +43,8 @@ npm run deploy
 ```
 
 已经初始化过的 D1 不要重复执行建表脚本。
+
+Cron 使用 UTC 时间，每小时整点执行。数据库低于 1 MiB 时只检查而不删除；达到阈值后删除 24 小时以前的测量和旧指令。最近 24 小时的数据不会被自动删除。
 
 ## 服务地址
 
