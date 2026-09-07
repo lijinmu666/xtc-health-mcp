@@ -31,6 +31,10 @@ function positiveInteger(value: string, fallback: number): number {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function autoCleanup(env: Env): Promise<void> {
   const thresholdBytes = positiveInteger(env.AUTO_CLEANUP_THRESHOLD_BYTES, 1024 * 1024);
   const retentionHours = positiveInteger(env.AUTO_CLEANUP_RETENTION_HOURS, 24);
@@ -188,7 +192,7 @@ function buildMcpServer(env: Env): McpServer {
     "collect_health_now",
     {
       title: "立即采集 XTC 健康数据",
-      description: "向在线手表发送一次采集指令。首次调用不填 command_id；若返回 pending，约 60–120 秒后用返回的 command_id 再调用以查询结果。",
+      description: "向在线手表发送一次采集指令，并在本次调用中等待最多 10 秒；成功时直接返回健康数据，超时后可用 command_id 再次查询。",
       inputSchema: {
         device_id: z.string().min(1).max(64).optional(),
         command_id: z.string().uuid().optional(),
@@ -213,14 +217,37 @@ function buildMcpServer(env: Env): McpServer {
       const sent = await stub.fetch("https://device-hub/send", {
         method: "POST",
         headers: jsonHeaders,
-        body: JSON.stringify({ type: "collect", command_id: id, timeout_seconds: 120 }),
+        body: JSON.stringify({ type: "collect-health-now", command_id: id, timeout_seconds: 10 }),
       });
       const info = await sent.json() as { connections?: number };
       if (!sent.ok || !info.connections) {
         return mcpResult({ status: "offline", command_id: id, message: "手表当前没有 WebSocket 连接；应用重连后请重新发起。" }, true);
       }
       await env.DB.prepare("UPDATE commands SET status='sent' WHERE id=?").bind(id).run();
-      return mcpResult({ status: "pending", command_id: id, device_id: deviceId, retry_after_seconds: 75 });
+
+      const deadline = Date.now() + 10_000;
+      while (Date.now() < deadline) {
+        const result = await env.DB.prepare(
+          `SELECT c.id,c.device_id,c.created_at,c.completed_at,c.status,
+                  m.measured_at,m.heart_rate,m.temperature
+           FROM commands c LEFT JOIN measurements m ON m.id=c.result_measurement_id
+           WHERE c.id=? AND c.device_id=?`,
+        ).bind(id, deviceId).first<Record<string, unknown>>();
+        if (result?.status === "completed") {
+          return mcpResult({ ...result, waited_seconds: Math.ceil((10_000 - (deadline - Date.now())) / 1000) });
+        }
+        const remaining = deadline - Date.now();
+        if (remaining > 0) await sleep(Math.min(1000, remaining));
+      }
+
+      await env.DB.prepare("UPDATE commands SET status='timeout' WHERE id=? AND status='sent'").bind(id).run();
+      return mcpResult({
+        status: "timeout",
+        command_id: id,
+        device_id: deviceId,
+        timeout_seconds: 10,
+        message: "10 秒内没有收到手表上传的数据；可用 command_id 再次查询。",
+      }, true);
     },
   );
 
