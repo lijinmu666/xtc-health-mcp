@@ -136,6 +136,3 @@ https://xtc-health-mcp.<你的子域>.workers.dev/mcp
 - https://developers.cloudflare.com/durable-objects/best-practices/websockets/
 - https://developers.openai.com/api/docs/mcp
 
-## 项目记录
-
-[小天才 Z8A 健康 MCP 的架构、测试和排障记录](docs/PROJECT_HISTORY.md)。
