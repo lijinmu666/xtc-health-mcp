@@ -1,0 +1,6 @@
+<resources>
+    <color name="background">#101216</color>
+    <color name="panel">#20242B</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="accent">#8EA7FF</color>
+</resources>

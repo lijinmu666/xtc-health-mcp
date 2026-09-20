@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">Healthxtc Server</string>
+    <string name="main_title">Healthxtc Server</string>
+    <string name="service_status">服务状态</string>
+    <string name="test_tools">测试工具</string>
+    <string name="settings">设置</string>
+    <string name="test_connection">测试服务器连接</string>
+    <string name="collect_now">立即收集数据</string>
+    <string name="collect_upload_now">立即收集并上传</string>
+    <string name="custom_upload">上传自定义数据</string>
+    <string name="logs">运行日志</string>
+    <string name="clear_logs">清空日志</string>
+    <string name="server_url">MCP 服务器地址（不用填写 /health）</string>
+    <string name="interval_minutes">自动上传间隔（分钟）</string>
+    <string name="enable_auto">启用自动上传</string>
+    <string name="allow_notifications">允许结果通知</string>
+    <string name="enable_wake_lock">启用 WakeLock（会增加耗电）</string>
+    <string name="save">保存</string>
+    <string name="heart_rate">心率</string>
+    <string name="temperature">体温</string>
+    <string name="upload">上传</string>
+    <string name="cancel">取消</string>
+</resources>
