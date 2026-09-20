@@ -12,7 +12,11 @@
 - 设备 HTTP/WebSocket 接口：无需 API Key；
 - Magisk 保活模块：已移除，目前不需要；
 - 自动清理：每小时检查一次；D1 达到 1 MiB 后，删除 24 小时以前的数据；
-- APK 的服务器地址和设备 ID 仍由设置页配置，不应硬编码。
+- APK 的服务器地址由设置页配置；设备 ID 当前在应用中固定为 `xtc-z8a`。
+
+## 手表端源码
+
+[Healthxtc Server Android 工程](android/HealthxtcServer/README.md)，版本 `1.2.0 (3)`。本仓库不包含编译后的 APK。
 
 ## 项目信息
 
