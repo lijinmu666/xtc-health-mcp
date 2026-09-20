@@ -61,11 +61,11 @@
 
 ## 6. 当前已确认状态与后续验证
 
-- 本次已核对：GitHub 仓库 `lijinmu666/xtc-health-mcp` 为 **private**；默认分支 `main` 只含 Cloudflare Worker、迁移脚本和文档，没有手表 Android 工程。
+- 本次已核对：GitHub 仓库 `lijinmu666/xtc-health-mcp` 为 **private**；默认分支 `main` 保留 Cloudflare Worker、迁移脚本和文档，并新增 `android/HealthxtcServer/` 源码。
 - 用户此前反馈：AI 端能连接 MCP 并调用工具；手表上经代理可得到连接 HTTP 200；曾正常采集心率；保活后曾出现后台“进程还在但任务不执行”。这些是用户的当时测试反馈，不能替代现版本完整联调。
 - 建议联调顺序：先用 APK 测试页确认 `/health`，再采集并上传一条合法心率/体温数据，之后用 `get_health_history` 查看；最后熄屏观察跨数个自动上传周期，并调用 `collect_health_now`，检查 APK 日志中是否出现闹钟唤醒、`ping/pong`、断线重连和上传结果。
 - 若再次出现假死：分别记录自动闹钟是否触发、进程是否被系统冻结、WebSocket 是否收到 `pong`、网络是否通、是否发出 HTTP 请求；把设备时间、通知与 Worker 日志对齐。单靠“进程存在”无法证明计时器及网络回调正在运行。
 
 ## 7. 源码保存情况
 
-本仓库目前只有 Worker。先前交付过名为 `HealthxtcServer-source-v1.2.0.zip` 的 Android 源码 ZIP，但当前工作区文件已被清理，此会话访问该历史文件返回未找到。恢复原始 ZIP 之前，不应把按描述重新编写的 Android 项目冒充最后已交付源码。拿到 ZIP 后应先检查包名、版本、图标、Gradle 工程、是否意外包含凭据，再原样加入本私有仓库的 `android/HealthxtcServer/` 目录，并验证可编译。
+已经从资料库恢复 `HealthxtcServer-source-v1.2.0.zip`，核对 ZIP 完整性、包名 `com.lijinmu.healthxtc`、版本 `1.2.0 (3)`、图标及凭据后，将其中 30 个源码文件原样加入本私有仓库的 `android/HealthxtcServer/` 目录（提交 `6c6cf6fb3010000dbc2578eb476dea57a0d8dfeb`）。未在本次环境里编译 APK；仍需在 Android Studio 运行编译和手表真机回归。
